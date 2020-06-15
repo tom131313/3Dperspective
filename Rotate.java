@@ -38,7 +38,7 @@ import org.opencv.core.CvType;
 import org.opencv.core.Size;
 import org.opencv.core.MatOfPoint2f;
 
-public class App {
+public class Rotate {
     static {
 		System.loadLibrary(Core.NATIVE_LIBRARY_NAME); // Load the native library.
     }
@@ -58,10 +58,10 @@ public class App {
     static AtomicInteger scale = new AtomicInteger(1);
     static AtomicInteger fovy = new AtomicInteger(53);
 
-        public App(String[] args) {
+        public Rotate(String[] args) {
             // Create and set up the window.
             frame = new JFrame("Angle Control");
-            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE); // end program if frame closed
             // Set up the content pane.
             addComponentsToPane(frame.getContentPane());
             // Use the content pane's default BorderLayout. No need for
@@ -329,7 +329,7 @@ public class App {
         System.out.println("ptsInPt2fTemp\n" + ptsInPt2fTemp.dump());
         System.out.println("ptsOutPt2fTemp\n" + ptsOutPt2fTemp.dump());
         Mat warp=Imgproc.getPerspectiveTransform(ptsInPt2fTemp, ptsOutPt2fTemp);
-        warp.copyTo(M);
+        warp.copyTo(M); // return the warp matrix through the parameter list
         ptsInPt2fTemp.release();
         warp.release();
 
@@ -367,11 +367,11 @@ public class App {
     public static void main(String[] args)
     {
         // Schedule a job for the event dispatch thread:
-        // creating and showing this application's GUI.
+        // creating and showing this application's GUI - the slider bars (not the OpenCV images).
         javax.swing.SwingUtilities.invokeLater(new Runnable() {
             @Override
             public void run() {
-                new App(args);
+                new Rotate(args);
             }
         });
  
@@ -413,24 +413,25 @@ public class App {
             }
         }
 
+        // outer loop runs until a key is presses in the OpenCV image screens
+        // inner loop runs until an update event for a slider bar is generated
         loop:
         while( true ) {
- 
+            // new value from a slider bar event so calculate a new wrap matrix
             warpImage(m, angleZ.get(), angleX.get(), angleY.get(), 1, fovy.get(), disp, warp, corners); // fovy = rad2deg(arctan2(640,480)) = 53 ??
             recalculate.set(false);
              
         while( ! recalculate.get() ) {
-    
+            // use the warp matrix to wrap each image (still or camera frame)
             if (cap.isOpened()) cap.read(m);
             double d=Math.hypot(m.cols(),m.rows());
             double sideLength=scale.get()*d/Math.cos(Math.toRadians(halfFovy));
             Imgproc.warpPerspective(m, disp, warp, new Size(sideLength,sideLength));//Do actual image warp
             HighGui.imshow("Disp", disp);
             HighGui.imshow("Orig", m);
-            c = HighGui.waitKey(25);
-    
-            if (c != -1) break loop;
-    
+            c = HighGui.waitKey(25); // wait so not beating on computer, 25 millisecs is about 40 fps
+            if (c != -1) break loop; // end program if key is pressed in an OpenCV window
+
         }
         }
 
