@@ -201,12 +201,12 @@ public class Rotate {
         double sg=Math.sin(Math.toRadians(gamma));
         double cg=Math.cos(Math.toRadians(gamma));
     
-        double halfFovy=fovy*0.5;
-        double d=Math.hypot(sz.width,sz.height);
+        double halfFovy=fovy*0.5; // field of view Y
+        double d=Math.hypot(sz.width,sz.height); // hypotenus of the image
         double sideLength=scale*d/Math.cos(Math.toRadians(halfFovy));
         double h=d/(2.0*Math.sin(Math.toRadians(halfFovy)));
-        double n=h-(d/2.0);
-        double f=h+(d/2.0);
+        double n=h-(d/2.0); // near (hither)
+        double f=h+(d/2.0); // far (yon)
     
         Mat F=new Mat(4,4, CvType.CV_64FC1);//Allocate 4x4 transformation matrix F
         Mat Rtheta=Mat.eye(4,4, CvType.CV_64FC1);//Allocate 4x4 rotation matrix around Z-axis by theta degrees
@@ -216,7 +216,35 @@ public class Rotate {
         Mat T=Mat.eye(4,4, CvType.CV_64FC1);//Allocate 4x4 translation matrix along Z-axis by -h units
         Mat P=Mat.zeros(4,4, CvType.CV_64FC1);//Allocate 4x4 projection matrix
                                                 // zeros instead of eye as in github manisoftwartist/perspectiveproj
-    
+
+// There are a few instances of sign changes or position changes from other sources such as Wikipedia
+// or other YouTube presentations, etc.
+// Opencv uses row order matrices and other sources such as OpenGL commonly use column order matrices.
+/**
+ *  1   0   0   0
+ *  0   1   0   0
+ *  0   0   1   0
+ *  0   0   0   1
+ * 
+ * Rotation Matrices for Z, X, Y axes except the 3 dimensions arrange the values in different rows
+ *  cosine    -sin  0   0
+ *    -sin  cosine  0   0
+ *      0       0   1   0
+ *      0       0   0   1
+ * 
+ * Translaton Matrix for Z axis
+ *  1   0   0   0
+ *  0   1   0   0
+ *  0   0   1  -h
+ *  0   0   0   1
+ * 
+ * View / Perspective / Projection Matrix
+ *  cotan   0           0           0
+ *    0   cotan         0           0
+ *    0     0   -(f+n)/f-n)  -2fn/(f-n)
+ *    0     0          -1           0
+ *  
+ */
         //Rtheta Z
         Rtheta.put(0,0, ct);
         Rtheta.put(1,1, ct);
@@ -230,15 +258,15 @@ public class Rotate {
         //Rgamma Y
         Rgamma.put(0,0, cg);
         Rgamma.put(2,2, cg);
-        Rgamma.put(0,2, -sg); // sign reversed? Math different convention than computer graphics according to Wikipedia
+        Rgamma.put(0,2, -sg); // sign reversals? Math different convention than computer graphics according to Wikipedia row /column swapping
         Rgamma.put(2,0, sg);
         //T
         T.put(2,3, -h);
-        //P Perspective Matrix (see also in computer vision a camera matrix or (camera) projection matrix is a 3x4 matrix which describes the mapping of a pinhole camera from 3D points in the world to 2D points in an image.)
+        //P Perspective Matrix (see also in computer vision a view, camera matrix or (camera) projection matrix is a 3x4 matrix which describes the mapping of a pinhole camera from 3D points in the world to 2D points in an image.)
         P.put(0,0, 1.0/Math.tan(Math.toRadians(halfFovy)));
         P.put(1,1, 1.0/Math.tan(Math.toRadians(halfFovy)));
-        P.put(2,2, -(f+n)/(f-n));
-        P.put(2,3, -(2.0*f*n)/(f-n));
+        P.put(2,2, -(f+n)/(f-n)); // sign reversals?
+        P.put(2,3, -(2.0*f*n)/(f-n)); // row/column swapped from other presentations
         P.put(3,2, -1.0);
         System.out.println("P\n" + P.dump());
         System.out.println("T\n" + T.dump());
