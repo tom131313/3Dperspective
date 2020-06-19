@@ -37,6 +37,7 @@ import org.opencv.videoio.VideoCapture;
 import org.opencv.core.CvType;
 import org.opencv.core.Size;
 import org.opencv.core.MatOfPoint2f;
+import org.opencv.calib3d.Calib3d;
 
 public class Rotate {
     static {
@@ -194,6 +195,40 @@ public class Rotate {
                     Mat   M,
                     MatOfPoint2f corners) {
 
+        double halfFovy=fovy*0.5; // field of view Y
+        double d=Math.hypot(sz.width,sz.height); // hypotenus of the image
+        double sideLength=scale*d/Math.cos(Math.toRadians(halfFovy));
+        double h=d/(2.0*Math.sin(Math.toRadians(halfFovy)));
+        double n=h-(d/2.0); // near (hither)
+        double f=h+(d/2.0); // far (yon)
+        Mat R = Mat.eye(4, 4, CvType.CV_64FC1);
+        Mat F=new Mat(4,4, CvType.CV_64FC1);//Allocate 4x4 transformation matrix F
+        Mat T=Mat.eye(4,4, CvType.CV_64FC1);//Allocate 4x4 translation matrix along Z-axis by -h units
+        Mat P=Mat.zeros(4,4, CvType.CV_64FC1);//Allocate 4x4 projection matrix
+                                                // zeros instead of eye as in github manisoftwartist/perspectiveproj
+
+        //T
+        T.put(2,3, -h);
+        //P Perspective Matrix (see also in computer vision a view, camera matrix or (camera) projection matrix is a 3x4 matrix which describes the mapping of a pinhole camera from 3D points in the world to 2D points in an image.)
+        P.put(0,0, 1.0/Math.tan(Math.toRadians(halfFovy)));
+        P.put(1,1, 1.0/Math.tan(Math.toRadians(halfFovy)));
+        P.put(2,2, -(f+n)/(f-n)); // sign reversals?
+        P.put(2,3, -(2.0*f*n)/(f-n)); // row/column swapped from other presentations
+        P.put(3,2, -1.0);
+        System.out.println("P\n" + P.dump());
+        System.out.println("T\n" + T.dump());
+
+        //Compose transformations
+        //F=P*T*Rphi*Rtheta*Rgamma;//Matrix-multiply to produce master matrix
+        //gemm(Mat src1, Mat src2, double alpha, Mat src3, double beta, Mat dst)
+        //dst = alpha*src1.t()*src2 + beta*src3.t(); // w or w/o the .t() transpose
+        // D=α∗AB+β∗C
+
+        Core.gemm(P, T, 1, new Mat(), 0, F);
+
+        boolean useRodrigues = true;
+        if(!useRodrigues) // use these calculations or else call OpenCV Rodrigues which is identical results
+        {
         double st=Math.sin(Math.toRadians(theta));
         double ct=Math.cos(Math.toRadians(theta));
         double sp=Math.sin(Math.toRadians(phi));
@@ -201,30 +236,14 @@ public class Rotate {
         double sg=Math.sin(Math.toRadians(gamma));
         double cg=Math.cos(Math.toRadians(gamma));
     
-        double halfFovy=fovy*0.5; // field of view Y
-        double d=Math.hypot(sz.width,sz.height); // hypotenus of the image
-        double sideLength=scale*d/Math.cos(Math.toRadians(halfFovy));
-        double h=d/(2.0*Math.sin(Math.toRadians(halfFovy)));
-        double n=h-(d/2.0); // near (hither)
-        double f=h+(d/2.0); // far (yon)
-    
-        Mat F=new Mat(4,4, CvType.CV_64FC1);//Allocate 4x4 transformation matrix F
         Mat Rtheta=Mat.eye(4,4, CvType.CV_64FC1);//Allocate 4x4 rotation matrix around Z-axis by theta degrees
         Mat Rphi=Mat.eye(4,4, CvType.CV_64FC1);//Allocate 4x4 rotation matrix around X-axis by phi degrees
         Mat Rgamma=Mat.eye(4,4, CvType.CV_64FC1);//Allocate 4x4 rotation matrix around Y-axis by gamma degrees
     
-        Mat T=Mat.eye(4,4, CvType.CV_64FC1);//Allocate 4x4 translation matrix along Z-axis by -h units
-        Mat P=Mat.zeros(4,4, CvType.CV_64FC1);//Allocate 4x4 projection matrix
-                                                // zeros instead of eye as in github manisoftwartist/perspectiveproj
-
 // There are a few instances of sign changes or position changes from other sources such as Wikipedia
 // or other YouTube presentations, etc.
 // Opencv uses row order matrices and other sources such as OpenGL commonly use column order matrices.
 /**
- *  1   0   0   0
- *  0   1   0   0
- *  0   0   1   0
- *  0   0   0   1
  * 
  * Rotation Matrices for Z, X, Y axes except the 3 dimensions arrange the values in different rows
  *  cosine    -sin  0   0
@@ -260,39 +279,41 @@ public class Rotate {
         Rgamma.put(2,2, cg);
         Rgamma.put(0,2, -sg); // sign reversals? Math different convention than computer graphics according to Wikipedia row /column swapping
         Rgamma.put(2,0, sg);
-        //T
-        T.put(2,3, -h);
-        //P Perspective Matrix (see also in computer vision a view, camera matrix or (camera) projection matrix is a 3x4 matrix which describes the mapping of a pinhole camera from 3D points in the world to 2D points in an image.)
-        P.put(0,0, 1.0/Math.tan(Math.toRadians(halfFovy)));
-        P.put(1,1, 1.0/Math.tan(Math.toRadians(halfFovy)));
-        P.put(2,2, -(f+n)/(f-n)); // sign reversals?
-        P.put(2,3, -(2.0*f*n)/(f-n)); // row/column swapped from other presentations
-        P.put(3,2, -1.0);
-        System.out.println("P\n" + P.dump());
-        System.out.println("T\n" + T.dump());
+        
         System.out.println("Rphi\n" + Rphi.dump());
         System.out.println("Rtheta\n" + Rtheta.dump());
         System.out.println("Rgamma\n" + Rgamma.dump());
-        //Compose transformations
-        //F=P*T*Rphi*Rtheta*Rgamma;//Matrix-multiply to produce master matrix
-        //gemm(Mat src1, Mat src2, double alpha, Mat src3, double beta, Mat dst)
-        //dst = alpha*src1.t()*src2 + beta*src3.t(); // w or w/o the .t() transpose
-        // D=α∗AB+β∗C
-        Mat F1 = new Mat();
-        Mat F2 = new Mat();
-        Mat F3 = new Mat();
-        Core.gemm(P, T, 1, new Mat(), 0, F1);
-        Core.gemm(F1, Rphi, 1, new Mat(), 0, F2);
-        Core.gemm(F2, Rtheta, 1, new Mat(), 0, F3);
-        Core.gemm(F3, Rgamma, 1, new Mat(), 0, F);
-        P.release();
-        T.release();
+
+        Core.gemm(Rphi, Rtheta, 1, new Mat(), 0, R);
+        Core.gemm(R, Rgamma, 1, new Mat(), 0, R);
         Rphi.release();
         Rtheta.release();
         Rgamma.release();
-        F1.release();
-        F2.release();
-        F3.release();
+        }
+        else // use OpenCV Rodrigues - same results of rolling our own as above
+        {
+        double[] angles = {Math.toRadians(phi), Math.toRadians(gamma), Math.toRadians(theta)};
+
+        Mat angleVector = new Mat(3, 1, CvType.CV_64FC1);
+        angleVector.put(0, 0, angles);
+
+        Mat rod = new Mat(3, 3, CvType.CV_64FC1);
+        Calib3d.Rodrigues(angleVector, rod); // phi, gamma, theta is x, y, z 1x3 or 3x1 3x3
+        System.out.println("Rod\n" + rod.dump());
+
+        for (int iRow = 0; iRow <= 2; iRow++) {
+            double[] temp = new double[3];
+            rod.get(iRow, 0, temp);
+            R.put(iRow, 0, temp);
+        }
+        rod.release();
+        }
+
+        System.out.println("R\n" + R.dump());
+        Core.gemm(F, R, 1, new Mat(), 0, F);
+        P.release();
+        T.release();
+        R.release();
 
         //Transform 4x4 points
         double[] ptsIn = new double[4*3];
@@ -379,8 +400,8 @@ public class Rotate {
                    double    gamma, //y
                    double    scale,
                    double    fovy, //field of view y
-                   Mat      dst,
-                   Mat      M,
+                   Mat       dst,
+                   Mat       M,
                    MatOfPoint2f corners){
         double halfFovy=fovy*0.5;
         double d=Math.hypot(src.cols(),src.rows());
