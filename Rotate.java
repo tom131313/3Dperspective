@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.awt.BorderLayout;
 import java.awt.Container;
+import java.awt.Font;
 import javax.swing.BoxLayout;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
@@ -89,8 +90,9 @@ public class Rotate {
     
                 JPanel sliderPanel = new JPanel();
                 sliderPanel.setLayout(new BoxLayout(sliderPanel, BoxLayout.PAGE_AXIS));
-    
-                labelX.setText(String.format("X %d", angleX.get()));
+
+                labelX.setFont(new Font("Verdana", Font.PLAIN, 25));
+                labelX.setText(String.format("X = %d", angleX.get()));
                 sliderPanel.add(labelX);
     
                 JSlider sliderX = new JSlider(ANGLE_SLIDER_MIN, ANGLE_SLIDER_MAX, angleX.get());
@@ -108,7 +110,8 @@ public class Rotate {
                 });
                 sliderPanel.add(sliderX);
     
-                labelY.setText(String.format("Y %d", angleY.get()));
+                labelY.setFont(new Font("Verdana", Font.PLAIN, 25));
+                labelY.setText(String.format("Y = %d", angleY.get()));
                 sliderPanel.add(labelY);
     
                 JSlider sliderY = new JSlider(ANGLE_SLIDER_MIN, ANGLE_SLIDER_MAX, angleY.get());
@@ -125,8 +128,9 @@ public class Rotate {
                     }
                 });
                 sliderPanel.add(sliderY);
-    
-                labelZ.setText(String.format("Z %d", angleZ.get()));
+
+                labelZ.setFont(new Font("Verdana", Font.PLAIN, 25));
+                labelZ.setText(String.format("Z = %d", angleZ.get()));
                 sliderPanel.add(labelZ);
     
                 JSlider sliderZ = new JSlider(ANGLE_SLIDER_MIN, ANGLE_SLIDER_MAX, angleZ.get());
@@ -143,9 +147,9 @@ public class Rotate {
                     }
                 });
                 sliderPanel.add(sliderZ);
-    
 
-                labelFOVY.setText(String.format("FOV Y %d", fovy.get()));
+                labelFOVY.setFont(new Font("Verdana", Font.PLAIN, 25));
+                labelFOVY.setText(String.format("FOV Y = %d", fovy.get()));
                 sliderPanel.add( labelFOVY);
     
                 JSlider sliderFOVY = new JSlider(1, 179, fovy.get());
@@ -167,22 +171,22 @@ public class Rotate {
         }
     
         private void updateX() {
-            labelX.setText(String.format("X %d", angleX.get()));
+            labelX.setText(String.format("X = %d", angleX.get()));
             recalculate.set(true);
          }
     
         private void updateY() {
-            labelY.setText(String.format("Y %d", angleY.get()));
+            labelY.setText(String.format("Y = %d", angleY.get()));
             recalculate.set(true);
         }
     
         private void updateZ() {
-            labelZ.setText(String.format("Z %d", angleZ.get()));
+            labelZ.setText(String.format("Z = %d", angleZ.get()));
             recalculate.set(true);
         }
     
         private void updateFOVY() {
-            labelFOVY.setText(String.format("FOV Y %d", fovy.get()));
+            labelFOVY.setText(String.format("FOV Y = %d", fovy.get()));
             recalculate.set(true);
         }
 
@@ -201,51 +205,15 @@ public class Rotate {
         double h=d/(2.0*Math.sin(Math.toRadians(halfFovy)));
         double n=h-(d/2.0); // near (hither)
         double f=h+(d/2.0); // far (yon)
-        Mat R = Mat.eye(4, 4, CvType.CV_64FC1);
-        Mat F=new Mat(4,4, CvType.CV_64FC1);//Allocate 4x4 transformation matrix F
-        Mat T=Mat.eye(4,4, CvType.CV_64FC1);//Allocate 4x4 translation matrix along Z-axis by -h units
-        Mat P=Mat.zeros(4,4, CvType.CV_64FC1);//Allocate 4x4 projection matrix
-                                                // zeros instead of eye as in github manisoftwartist/perspectiveproj
 
-        //T
-        T.put(2,3, -h);
-        //P Perspective Matrix (see also in computer vision a view, camera matrix or (camera) projection matrix is a 3x4 matrix which describes the mapping of a pinhole camera from 3D points in the world to 2D points in an image.)
-        P.put(0,0, 1.0/Math.tan(Math.toRadians(halfFovy)));
-        P.put(1,1, 1.0/Math.tan(Math.toRadians(halfFovy)));
-        P.put(2,2, -(f+n)/(f-n)); // sign reversals?
-        P.put(2,3, -(2.0*f*n)/(f-n)); // row/column swapped from other presentations
-        P.put(3,2, -1.0);
-        System.out.println("P\n" + P.dump());
-        System.out.println("T\n" + T.dump());
-
-        //Compose transformations
-        //F=P*T*Rphi*Rtheta*Rgamma;//Matrix-multiply to produce master matrix
-        //gemm(Mat src1, Mat src2, double alpha, Mat src3, double beta, Mat dst)
-        //dst = alpha*src1.t()*src2 + beta*src3.t(); // w or w/o the .t() transpose
-        // D=α∗AB+β∗C
-
-        Core.gemm(P, T, 1, new Mat(), 0, F);
-
-        boolean useRodrigues = true;
-        if(!useRodrigues) // use these calculations or else call OpenCV Rodrigues which is identical results
-        {
-        double st=Math.sin(Math.toRadians(theta));
-        double ct=Math.cos(Math.toRadians(theta));
-        double sp=Math.sin(Math.toRadians(phi));
-        double cp=Math.cos(Math.toRadians(phi));
-        double sg=Math.sin(Math.toRadians(gamma));
-        double cg=Math.cos(Math.toRadians(gamma));
-    
-        Mat Rtheta=Mat.eye(4,4, CvType.CV_64FC1);//Allocate 4x4 rotation matrix around Z-axis by theta degrees
-        Mat Rphi=Mat.eye(4,4, CvType.CV_64FC1);//Allocate 4x4 rotation matrix around X-axis by phi degrees
-        Mat Rgamma=Mat.eye(4,4, CvType.CV_64FC1);//Allocate 4x4 rotation matrix around Y-axis by gamma degrees
-    
-// There are a few instances of sign changes or position changes from other sources such as Wikipedia
-// or other YouTube presentations, etc.
+// In the matrices there are a few instances of sign changes or position changes
+// from other sources such as Wikipedia or other YouTube presentations, etc.
+// Math different convention than computer graphics according to Wikipedia. Rrow /column swapping since
 // Opencv uses row order matrices and other sources such as OpenGL commonly use column order matrices.
 /**
  * 
- * Rotation Matrices for Z, X, Y axes except the 3 dimensions arrange the values in different rows
+ * Rotation Matrices for Z, X, Y axes
+ * The 3 dimensions arrange the sin/cos values in different rows
  *  cosine    -sin  0   0
  *    -sin  cosine  0   0
  *      0       0   1   0
@@ -264,6 +232,50 @@ public class Rotate {
  *    0     0          -1           0
  *  
  */
+ 
+        Mat R = Mat.eye(4, 4, CvType.CV_64FC1);
+        Mat F=new Mat(4,4, CvType.CV_64FC1);//Allocate 4x4 transformation matrix F
+        Mat T=Mat.eye(4,4, CvType.CV_64FC1);//Allocate 4x4 translation matrix along Z-axis by -h units
+        Mat P=Mat.zeros(4,4, CvType.CV_64FC1);//Allocate 4x4 projection matrix
+                                                // zeros instead of eye as in github manisoftwartist/perspectiveproj
+
+        //T
+        T.put(2,3, -h);
+
+        //P Perspective Matrix (see also in computer vision a view, camera matrix or (camera) projection matrix is a 3x4 matrix which describes the mapping of a pinhole camera from 3D points in the world to 2D points in an image.)
+        P.put(0,0, 1.0/Math.tan(Math.toRadians(halfFovy)));
+        P.put(1,1, 1.0/Math.tan(Math.toRadians(halfFovy)));
+        P.put(2,2, -(f+n)/(f-n)); // sign reversals?
+        P.put(2,3, -(2.0*f*n)/(f-n)); // row/column swapped from other presentations
+        P.put(3,2, -1.0);
+        System.out.println("P\n" + P.dump());
+        System.out.println("T\n" + T.dump());
+
+        //Compose transformations
+        //F=P*T*Rphi*Rtheta*Rgamma;//Matrix-multiply to produce master matrix
+        //gemm(Mat src1, Mat src2, double alpha, Mat src3, double beta, Mat dst)
+        //dst = alpha*src1.t()*src2 + beta*src3.t(); // w or w/o the .t() transpose
+        // D=α∗AB+β∗C
+
+        Core.gemm(P, T, 1, new Mat(), 0, F); // P x T => F
+
+        // Calculate the 3D rotation matrix with a choice of 2 different ways
+        // The results are identical     
+        // Rodrigues is the OpenCV method.  The other method we see the sines and cosines.
+        boolean useRodrigues = true;
+        if(!useRodrigues) // use these sin/cos calculations or else call OpenCV Rodrigues which is identical results
+        {
+        double st=Math.sin(Math.toRadians(theta));
+        double ct=Math.cos(Math.toRadians(theta));
+        double sp=Math.sin(Math.toRadians(phi));
+        double cp=Math.cos(Math.toRadians(phi));
+        double sg=Math.sin(Math.toRadians(gamma));
+        double cg=Math.cos(Math.toRadians(gamma));
+    
+        Mat Rtheta=Mat.eye(4,4, CvType.CV_64FC1);//Allocate 4x4 rotation matrix around Z-axis by theta degrees
+        Mat Rphi=Mat.eye(4,4, CvType.CV_64FC1);//Allocate 4x4 rotation matrix around X-axis by phi degrees
+        Mat Rgamma=Mat.eye(4,4, CvType.CV_64FC1);//Allocate 4x4 rotation matrix around Y-axis by gamma degrees
+    
         //Rtheta Z
         Rtheta.put(0,0, ct);
         Rtheta.put(1,1, ct);
@@ -277,7 +289,7 @@ public class Rotate {
         //Rgamma Y
         Rgamma.put(0,0, cg);
         Rgamma.put(2,2, cg);
-        Rgamma.put(0,2, -sg); // sign reversals? Math different convention than computer graphics according to Wikipedia row /column swapping
+        Rgamma.put(0,2, -sg);
         Rgamma.put(2,0, sg);
         
         System.out.println("Rphi\n" + Rphi.dump());
@@ -292,25 +304,25 @@ public class Rotate {
         }
         else // use OpenCV Rodrigues - same results of rolling our own as above
         {
-        double[] angles = {Math.toRadians(phi), Math.toRadians(gamma), Math.toRadians(theta)};
+            double[] angles = {Math.toRadians(phi), Math.toRadians(gamma), Math.toRadians(theta)};
 
-        Mat angleVector = new Mat(3, 1, CvType.CV_64FC1);
-        angleVector.put(0, 0, angles);
+            Mat angleVector = new Mat(3, 1, CvType.CV_64FC1);
+            angleVector.put(0, 0, angles);
 
-        Mat rod = new Mat(3, 3, CvType.CV_64FC1);
-        Calib3d.Rodrigues(angleVector, rod); // phi, gamma, theta is x, y, z 1x3 or 3x1 3x3
-        System.out.println("Rod\n" + rod.dump());
+            Mat rod = new Mat(4, 4, CvType.CV_64FC1);
+            Calib3d.Rodrigues(angleVector, rod); // phi, gamma, theta is x, y, z 1x3 or 3x1 3x3
+            System.out.println("Rod\n" + rod.dump());
 
-        for (int iRow = 0; iRow <= 2; iRow++) {
-            double[] temp = new double[3];
-            rod.get(iRow, 0, temp);
-            R.put(iRow, 0, temp);
-        }
-        rod.release();
+            for (int iRow = 0; iRow <= 2; iRow++) { // move 3 x 3 to the 4 x 4
+                double[] temp = new double[3];
+                rod.get(iRow, 0, temp);
+                R.put(iRow, 0, temp);
+            }
+            rod.release();
         }
 
         System.out.println("R\n" + R.dump());
-        Core.gemm(F, R, 1, new Mat(), 0, F);
+        Core.gemm(F, R, 1, new Mat(), 0, F); // F x R => R
         P.release();
         T.release();
         R.release();
