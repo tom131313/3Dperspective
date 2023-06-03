@@ -208,7 +208,7 @@ public class Rotate {
 
 // In the matrices there are a few instances of sign changes or position changes
 // from other sources such as Wikipedia or other YouTube presentations, etc.
-// Math different convention than computer graphics according to Wikipedia. Rrow /column swapping since
+// Math different convention than computer graphics according to Wikipedia. Row /column swapping since
 // Opencv uses row order matrices and other sources such as OpenGL commonly use column order matrices.
 /**
  * 
@@ -219,7 +219,7 @@ public class Rotate {
  *      0       0   1   0
  *      0       0   0   1
  * 
- * Translaton Matrix for Z axis
+ * Translation Matrix for Z axis
  *  1   0   0   0
  *  0   1   0   0
  *  0   0   1  -h
@@ -233,16 +233,16 @@ public class Rotate {
  *  
  */
  
-        Mat R = Mat.eye(4, 4, CvType.CV_64FC1);
-        Mat F=new Mat(4,4, CvType.CV_64FC1);//Allocate 4x4 transformation matrix F
-        Mat T=Mat.eye(4,4, CvType.CV_64FC1);//Allocate 4x4 translation matrix along Z-axis by -h units
-        Mat P=Mat.zeros(4,4, CvType.CV_64FC1);//Allocate 4x4 projection matrix
-                                                // zeros instead of eye as in github manisoftwartist/perspectiveproj
+        Mat R = Mat.eye(4, 4, CvType.CV_64FC1); // Allocate 4x4 rotation matrix R
+        Mat F = new Mat(4, 4, CvType.CV_64FC1); //Allocate 4x4 transformation matrix F
 
-        //T
+        //T is Translation Matrix
+        Mat T=Mat.eye(4,4, CvType.CV_64FC1); //Allocate 4x4 translation matrix along Z-axis by -h units (eye is quick ones on diagonal)
         T.put(2,3, -h);
 
         //P Perspective Matrix (see also in computer vision a view, camera matrix or (camera) projection matrix is a 3x4 matrix which describes the mapping of a pinhole camera from 3D points in the world to 2D points in an image.)
+        Mat P=Mat.zeros(4,4, CvType.CV_64FC1); //Allocate 4x4 projection matrix
+                                                // zeros instead of eye as in github manisoftwartist/perspectiveproj since the ones weren't used
         P.put(0,0, 1.0/Math.tan(Math.toRadians(halfFovy)));
         P.put(1,1, 1.0/Math.tan(Math.toRadians(halfFovy)));
         P.put(2,2, -(f+n)/(f-n)); // sign reversals?
@@ -444,10 +444,11 @@ public class Rotate {
 
         double halfFovy=fovy.get()*0.5;
 
-        // checks for the speciified camera and uses it if present.
+        // Checks for the specified camera and uses it if present.
         // If that camera isn't available, them open the static image file.
-
-        int camera = 1; //0 internal, 1 is external
+        // It seems the internal camera is the last index (highest number), whatever that is,
+        // and external camera is first (0), if it exists.
+        int camera = 0;
 
         VideoCapture cap;
         cap = new VideoCapture();
@@ -474,7 +475,7 @@ public class Rotate {
             }
         }
 
-        // outer loop runs until a key is presses in the OpenCV image screens
+        // outer loop runs until a key is pressed in the OpenCV image screens
         // inner loop runs until an update event for a slider bar is generated
         loop:
         while( true ) {
@@ -482,18 +483,17 @@ public class Rotate {
             warpImage(m, angleZ.get(), angleX.get(), angleY.get(), 1, fovy.get(), disp, warp, corners); // fovy = rad2deg(arctan2(640,480)) = 53 ??
             recalculate.set(false);
              
-        while( ! recalculate.get() ) {
-            // use the warp matrix to wrap each image (still or camera frame)
-            if (cap.isOpened()) cap.read(m);
-            double d=Math.hypot(m.cols(),m.rows());
-            double sideLength=scale.get()*d/Math.cos(Math.toRadians(halfFovy));
-            Imgproc.warpPerspective(m, disp, warp, new Size(sideLength,sideLength));//Do actual image warp
-            HighGui.imshow("Disp", disp);
-            HighGui.imshow("Orig", m);
-            c = HighGui.waitKey(25); // wait so not beating on computer, 25 millisecs is about 40 fps
-            if (c != -1) break loop; // end program if key is pressed in an OpenCV window
-
-        }
+            while( ! recalculate.get() ) {
+                // use the warp matrix to wrap each image (still or camera frame)
+                if (cap.isOpened()) cap.read(m);
+                double d=Math.hypot(m.cols(),m.rows());
+                double sideLength=scale.get()*d/Math.cos(Math.toRadians(halfFovy));
+                Imgproc.warpPerspective(m, disp, warp, new Size(sideLength,sideLength));//Do actual image warp
+                HighGui.imshow("Disp", disp);
+                HighGui.imshow("Orig", m);
+                c = HighGui.waitKey(25); // wait so not beating on computer, 25 millisecs is about 40 fps
+                if (c != -1) break loop; // end program if key is pressed in an OpenCV window
+            }
         }
 
         m.release();
